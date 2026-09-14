@@ -1,0 +1,102 @@
+// Para criar migrate  > npx prisma migrate dev --name <nome da migration> 
+// npx prisma generate para gerar os arquivos de prisma
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+ enum Role {
+  STAFF
+  ADMIN
+ }
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("STAFF")
+
+  orders    Order[] // relação com o pedido
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("users")
+
+}
+
+model Category {
+  id        String   @id @default(uuid())
+  name      String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  products  Product[] // relação com o produto
+
+  @@map("categories")
+}
+
+
+model Product {
+  id        String   @id @default(uuid())
+  name      String
+  price     Float
+  description String
+  banner     String
+  disabled   Boolean @default(false)
+
+  category_Id String // chave estrangeira
+  category   Category @relation(fields: [category_Id], references: [id], onDelete: Cascade) // relação com a categoria 
+
+  items     Item[] // relação com o item
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+ 
+  @@map("products")
+ 
+}
+
+model Order { // ordem da mesa
+  id        String   @id @default(uuid())
+  table     Int
+  name      String // nome do cliente
+  status    Boolean  @default(false)
+  draft     Boolean @default(true) // status false-> ainda em aguardo o pedido,  true-> foi enviando para a cozinha
+
+  user_Id   String
+  user      User @relation(fields: [user_Id], references: [id], onDelete: Cascade) 
+
+  items     Item[] // relação com o item
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt 
+
+  @@map("orders")
+}
+
+
+
+model Item{ // items do pedido
+id        String   @id @default(uuid())
+name      String
+amount     Int
+createdAt DateTime @default(now())
+updatedAt DateTime @updatedAt 
+
+order_Id String // chave estrangeira
+order   Order @relation(fields: [order_Id], references: [id], onDelete: Cascade) // relação com a ordem 
+
+product_Id String // chave estrangeira
+product   Product @relation(fields: [product_Id], references: [id], onDelete: Cascade) // relação com o produto
+
+
+  @@map("items")
+
+}

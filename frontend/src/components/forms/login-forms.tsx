@@ -15,15 +15,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { registerAction, type RegisterState } from "@/actions/auth";
+import { loginAction, type LoginState } from "@/actions/auth";
 
-const initialState: RegisterState = {
+const initialState: LoginState = {
     success: false,
     error: null,
 };
 
-export function RegisterForm() {
-    const [state, formAction, isPending] = useActionState(registerAction, initialState);
+export function LoginForm() {
+    const [state, formAction, isPending] = useActionState(loginAction, initialState);
 
     return (
         <Card className="bg-app-card border  border-app-border w-full max-w-md mx-auto">
@@ -40,22 +40,11 @@ export function RegisterForm() {
 
                     {state.success && (
                         <p className="text-sm text-green-400">
-                            Cadastro realizado. Redirecionando...
+                            Login realizado. Redirecionando...
                         </p>
                     )} 
 
-                    <div className="space-y-2">
-                        <Label htmlFor="name" className="text-white">Nome</Label>
-                        <Input
-                            type="text"
-                            id="name"
-                            name="name"
-                            placeholder=" Digite seu nome"
-                            required
-                            minLength={4}
-                            className=" text-white bg-app-card border border-app-border"
-                        />
-                    </div>
+                  
 
                     <div className="space-y-2">
                         <Label htmlFor="email" className="text-white">Email</Label>
@@ -86,13 +75,13 @@ export function RegisterForm() {
                         disabled={isPending}
                         className="w-full bg-brand-primary cursor-pointer text-white hover:bg-brand-primary/90"
                     >
-                        {isPending ? "Cadastrando..." : "Cadastrar"}
+                        {isPending ? "Acessando conta..." : "Acessar"}
                     </Button>
 
                     <p>
-                        Ja tem uma conta? <Link href="/login"
+                        Ainda não possui uma conta? <Link href="/register"
                             className=" shimmer-color-brand-primary hover:text-brand-primary/90">
-                            Faça login
+                            Cadastre-se
                         </Link>
                     </p>
                 </form>

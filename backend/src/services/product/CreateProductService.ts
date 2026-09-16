@@ -1,7 +1,6 @@
+import { Readable } from 'node:stream';
 import prisma from '../../prisma/prisma';
 import cloudinary from '../../config/cloudinary';
-
-
 
 interface CreateProductServiceProps {
     name: string;
@@ -12,16 +11,39 @@ interface CreateProductServiceProps {
     imageName: string;
 }
 
+function getUploadErrorMessage(error: unknown): string {
+    if (error instanceof Error && error.message) {
+        return error.message;
+    }
 
+    if (
+        error &&
+        typeof error === 'object' &&
+        'message' in error &&
+        typeof error.message === 'string' &&
+        error.message
+    ) {
+        return error.message;
+    }
+
+    return 'Erro ao fazer o upload da imagem';
+}
 
 class CreateProductService {
-
-
-
-    async execute({ name, price, description, imageBuffer, category_id, imageName }: CreateProductServiceProps) {
-
+    async execute({
+        name,
+        price,
+        description,
+        imageBuffer,
+        category_id,
+        imageName,
+    }: CreateProductServiceProps) {
         if (!category_id) {
             throw new Error('A categoria é obrigatória');
+        }
+
+        if (!imageBuffer?.length) {
+            throw new Error('A imagem do produto é obrigatória');
         }
 
         const categoryExists = await prisma.category.findFirst({
@@ -34,47 +56,41 @@ class CreateProductService {
             throw new Error('Categoria não encontrada');
         }
 
-
         let bannerURL = '';
 
         try {
-
             const publicId = `${Date.now()}-${imageName
                 .replace(/\.[^/.]+$/, '')
                 .replace(/[^a-zA-Z0-9_-]/g, '_')
                 .slice(0, 80)}`;
 
-            const result = await new Promise<string>((resolve, reject) => {
-                const uploadStream = cloudinary.uploader.upload_stream({
-                    folder: "products",
-                    resource_type: "image",
-                    public_id: publicId,
-                }, (error, result) => {
-                    if (error) {
-                        reject(error);
-                        return;
-                    }
+            bannerURL = await new Promise<string>((resolve, reject) => {
+                const uploadStream = cloudinary.uploader.upload_stream(
+                    {
+                        folder: 'products',
+                        resource_type: 'image',
+                        public_id: publicId,
+                        timeout: 600000,
+                    },
+                    (error, result) => {
+                        if (error) {
+                            reject(error);
+                            return;
+                        }
 
-                    if (!result?.secure_url) {
-                        reject(new Error('Cloudinary não retornou a URL da imagem'));
-                        return;
-                    }
+                        if (!result?.secure_url) {
+                            reject(new Error('Cloudinary não retornou a URL da imagem'));
+                            return;
+                        }
 
-                    resolve(result.secure_url);
-                });
+                        resolve(result.secure_url);
+                    },
+                );
 
-                uploadStream.end(imageBuffer);
+                Readable.from(imageBuffer).pipe(uploadStream);
             });
-
-
-
-
-
-            bannerURL = result;
         } catch (error) {
-            console.log(error);
-            const message = error instanceof Error ? error.message : 'Erro ao fazer o upload da imagem';
-            throw new Error(message);
+            throw new Error(getUploadErrorMessage(error));
         }
 
         const product = await prisma.product.create({
@@ -98,8 +114,6 @@ class CreateProductService {
 
         return product;
     }
-
 }
-
 
 export { CreateProductService };

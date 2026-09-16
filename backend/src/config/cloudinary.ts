@@ -14,6 +14,7 @@ cloudinary.config({
     api_key,
     api_secret,
     secure: true,
+    timeout: 600000,
 });
 
 export default cloudinary;

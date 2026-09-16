@@ -55,6 +55,7 @@ export interface Order {  // pedido
     table: number;
     status: boolean;  // true = Finalizado, false = produção
     draft: boolean; // true = rascunho, false = enviar para produção
+    items?: Item[];
     createdAt: string;
     updatedAt: string;
 }

@@ -11,13 +11,17 @@
 7. [Validação com Schemas](#validação-com-schemas)
 8. [Endpoints](#endpoints)
 9. [Fluxo de Requisição](#fluxo-de-requisição)
-10. [Configurações do Projeto](#configurações-do-projeto)
+10. [Frontend (Next.js)](#frontend-nextjs)
+11. [Configurações do Projeto](#configurações-do-projeto)
 
 ---
 
 ## Visão Geral
 
-Sistema backend de gerenciamento de pizzaria desenvolvido em Node.js com TypeScript, utilizando Express como framework web, Prisma ORM 7 (com driver adapter `pg`) para PostgreSQL, Zod para validação, e Cloudinary + Multer para imagem de produto.
+Sistema de gerenciamento de pizzaria em **monorepo** com:
+
+- **Backend** (`backend/`): Node.js + TypeScript, Express, Prisma ORM 7 (adapter `pg`) para PostgreSQL, Zod, JWT, Cloudinary + Multer para imagem de produto.
+- **Frontend** (`frontend/`): Next.js 16 (App Router), React 19, Server Actions, Tailwind CSS, componentes Base UI/shadcn. Consome a API REST do backend via `apiClient` centralizado.
 
 ---
 
@@ -86,14 +90,32 @@ Valores conforme o `package.json` atual.
 - **PostgreSQL**, acessado via Prisma 7 + adapter `pg`
 - A URL de conexão fica em `DATABASE_URL` (`.env`) e é lida pelo `prisma7.config.ts` e por `src/prisma/prisma.ts`
 
+### Frontend (`frontend/package.json`)
+
+| Tecnologia | Versão | Finalidade |
+| --- | --- | --- |
+| **next** | 16.3.5 | App Router, Server Actions, SSR |
+| **react** / **react-dom** | 19.2.8 | UI |
+| **@base-ui/react** | ^1.8.0 | Dialog, Select, Sheet, Input |
+| **tailwindcss** | ^4 | Estilização |
+| **lucide-react** | ^1.46.0 | Ícones |
+| **class-variance-authority** | ^0.7.1 | Variantes de componentes |
+
 ---
 
 ## Estrutura de Pastas
 
 ```
 pizzaria/
-├── CONTEXTO_PROJETO/
-│   └── CONTEXTO_PROJETO.md
+├── CONTEXTO_PROJETO.md
+├── backend/
+├── frontend/
+```
+
+### Backend (`backend/`)
+
+```
+backend/
 ├── prisma/
 │   ├── migrations/
 │   │   ├── 20260911160024/
@@ -174,7 +196,55 @@ pizzaria/
 └── tsconfig.json
 ```
 
-O Prisma Client de runtime está em `src/prisma/prisma.ts`.
+O Prisma Client de runtime está em `backend/src/prisma/prisma.ts`.
+
+### Frontend (`frontend/`)
+
+```
+frontend/
+├── public/
+├── src/
+│   ├── actions/
+│   │   ├── auth.ts                 # registerAction, loginAction, logoutAction
+│   │   ├── CreateCategory.tsx      # Server Action POST /category
+│   │   └── CreateProduct.tsx       # CreateProduct + DeleteProductAction
+│   ├── app/
+│   │   ├── access-denied/page.tsx  # STAFF sem permissão no dashboard
+│   │   ├── dashboard/
+│   │   │   ├── layout.tsx          # Sidebar + MobileSidebar + requiredAdmin
+│   │   │   ├── page.tsx            # Pedidos (componente Orders)
+│   │   │   ├── category/
+│   │   │   │   ├── layout.tsx
+│   │   │   │   └── page.tsx        # Lista + CategoryForm
+│   │   │   └── products/
+│   │   │       ├── layout.tsx
+│   │   │       └── page.tsx        # Lista + ProductForm + DeleteButtonProduct
+│   │   ├── login/page.tsx
+│   │   ├── register/page.tsx
+│   │   ├── globals.css
+│   │   ├── layout.tsx
+│   │   └── page.tsx
+│   ├── components/
+│   │   ├── dashboard/
+│   │   │   ├── category-form.tsx
+│   │   │   ├── delete-button.tsx
+│   │   │   ├── mobileSidebar.tsx
+│   │   │   ├── orders.tsx
+│   │   │   ├── product-form.tsx
+│   │   │   └── sidebar.tsx
+│   │   ├── forms/
+│   │   │   ├── login-forms.tsx
+│   │   │   └── register.tsx
+│   │   └── ui/                     # button, card, dialog, input, select, sheet, etc.
+│   └── lib/
+│       ├── api.ts                  # apiClient centralizado
+│       ├── auth.ts                 # cookie JWT, getUser, requiredAdmin
+│       ├── types.ts                # User, Product, Category, Order, Item
+│       └── utils.ts
+├── next.config.ts
+├── package.json
+└── tsconfig.json
+```
 
 ### Mapa de controllers e services
 
@@ -774,10 +844,12 @@ Aceita também a chave `category_Id`. Sem arquivo → `A imagem do produto é ob
 
 O service:
 
-1. Confere se a categoria existe
-2. Envia o buffer ao Cloudinary (`upload_stream` + `end(buffer)`), pasta `products`
+1. Confere se a categoria existe e se o buffer da imagem não está vazio
+2. Envia o buffer ao Cloudinary com `upload_stream` + `Readable.from(imageBuffer).pipe(uploadStream)`, pasta `products`, timeout de 600s
 3. Grava `banner` com a `secure_url`
 4. `prisma.product.create` com `category_Id`
+
+Se o upload no Cloudinary falhar, o produto **não** é criado no banco.
 
 ---
 
@@ -1416,10 +1488,36 @@ O service:
    ↓
 7. CreateProductService
    - categoria existe?
-   - Cloudinary upload → banner URL
+   - Cloudinary upload (stream) → banner URL
    - prisma.product.create ({ category_Id, banner, ... })
    ↓
 8. res.json(product)  → 200
+```
+
+### Criar produto (frontend → backend)
+
+```
+1. ProductForm (client) envia FormData via useActionState
+   ↓
+2. CreateProduct (Server Action)
+   - valida campos + arquivo
+   - lê file.arrayBuffer() e remonta FormData (name, price, description, category_id, file)
+   ↓
+3. apiClient POST /product (multipart, token, duplex: "half")
+   ↓
+4. Backend: Auth → Admin → Multer → Zod → Service → Cloudinary → Prisma
+   ↓
+5. revalidatePath("/dashboard/products") + fecha dialog + router.refresh()
+```
+
+### Desativar produto (frontend → backend)
+
+```
+1. DeleteButtonProduct chama DeleteProductAction(productId)
+   ↓
+2. apiClient DELETE /product?product_id=uuid&disable=true
+   ↓
+3. revalidatePath("/dashboard/products") + router.refresh()
 ```
 
 ### Listar produtos (logado)
@@ -1590,6 +1688,81 @@ O service:
 
 ---
 
+## Frontend (Next.js)
+
+### Arquitetura
+
+```
+Página (Server Component) → apiClient + getToken
+Formulário (Client Component) → useActionState → Server Action → apiClient → API Express
+Layout dashboard → requiredAdmin() → redirect /login ou /access-denied
+```
+
+### Autenticação (`src/lib/auth.ts`)
+
+- Cookie **httpOnly** `token-pizzaria` (30 dias, `sameSite: "lax"`)
+- `getToken()` / `setToken()` / `removeToken()`
+- `getUser()` → `GET /me` com Bearer token
+- `isAdmin(user)` → `user.role === "ADMIN"`
+- `requiredAdmin()` → usado nos layouts do dashboard; STAFF vai para `/access-denied`
+
+### Login e registro (`src/actions/auth.ts`)
+
+| Action | Endpoint | Comportamento |
+| --- | --- | --- |
+| `registerAction` | `POST /users` | Cadastra e redireciona para `/login` |
+| `loginAction` | `POST /session` | Salva token; ADMIN → `/dashboard`, STAFF → `/access-denied` |
+| `logoutAction` / `logoutSidebarAction` | — | Remove cookie e redireciona para `/login` |
+
+`redirect()` fica **fora** do `try/catch` nas Server Actions.
+
+### apiClient (`src/lib/api.ts`)
+
+- URL padrão: `http://127.0.0.1:3333` (evita problemas de IPv6 com `localhost` no Windows)
+- Override: `NEXT_PUBLIC_API_URL` ou `API_URL`
+- JSON: header `Content-Type: application/json` automático
+- `FormData`: remove `Content-Type` (boundary automático) e envia com `duplex: "half"`
+- Erros: lê `error` string, `details[]` (Zod) ou `error.message` (objeto)
+
+### Server Actions de domínio
+
+| Arquivo | Função | Endpoint | Observação |
+| --- | --- | --- | --- |
+| `CreateCategory.tsx` | `CreateCategory` | `POST /category` | JSON `{ name }`; `revalidatePath("/dashboard/category")` |
+| `CreateProduct.tsx` | `CreateProduct` | `POST /product` | multipart; `revalidatePath("/dashboard/products")` |
+| `CreateProduct.tsx` | `DeleteProductAction` | `DELETE /product?product_id=...&disable=true` | soft delete |
+
+Estados retornados usam `{ success, error, createdAt | deletedAt }` para feedback no formulário.
+
+### Rotas do dashboard (somente ADMIN)
+
+| Rota | Página / componente | API consumida |
+| --- | --- | --- |
+| `/dashboard` | `Orders` (pedidos em rascunho) | `GET /order?draft=true` |
+| `/dashboard/products` | grid de cards + `ProductForm` + `DeleteButtonProduct` | `GET /product`, `GET /category` |
+| `/dashboard/category` | grid de cards + `CategoryForm` | `GET /category` |
+
+Layouts: `dashboard/layout.tsx` (sidebar desktop + mobile), `category/layout.tsx` e `products/layout.tsx` chamam `requiredAdmin()`.
+
+### Componentes principais
+
+- **`product-form.tsx`**: Dialog com nome, preço (máscara BRL + hidden numérico), descrição, Select de categoria, upload com preview (`<img>` nativo, não `next/image` para Data URL), `useActionState(CreateProduct)`
+- **`category-form.tsx`**: Dialog + `useActionState(CreateCategory)`; card tracejado no grid
+- **`delete-button.tsx`**: Client; chama `DeleteProductAction` e `router.refresh()`
+- **`sidebar.tsx` / `mobileSidebar.tsx`**: navegação Pedidos, Produtos, Categorias, logout
+
+### Next.js (`next.config.ts`)
+
+- `reactCompiler: true`
+- `experimental.serverActions.bodySizeLimit: "6mb"` (Multer aceita até 5 MB)
+- `images.remotePatterns`: `res.cloudinary.com` (imagens de produto na listagem)
+
+### Tipos (`src/lib/types.ts`)
+
+`User`, `AuthResponse`, `Category`, `Product`, `Order`, `Item` — espelham respostas da API (`category_Id` no Product, etc.).
+
+---
+
 ## Configurações do Projeto
 
 ### TypeScript (`tsconfig.json`)
@@ -1618,21 +1791,22 @@ datasource db {
 }
 ```
 
-A URL **não** fica no schema. O CLI lê `prisma7.config.ts`. Runtime em `src/prisma/prisma.ts` com `PrismaPg`.
+A URL **não** fica no schema. O CLI lê `backend/prisma7.config.ts`. Runtime em `backend/src/prisma/prisma.ts` com `PrismaPg`.
 
-### Express (`src/server.ts`)
+### Express (`backend/src/server.ts`)
 
-1. `express.json()`
-2. `cors()`
-3. `router`
-4. Error handler com **4 parâmetros** (`error`, `request`, `response`, `next`)
+1. `dns.setDefaultResultOrder('ipv4first')` — evita timeout no upload Cloudinary em ambientes Windows
+2. `express.json()`
+3. `cors()`
+4. `router`
+5. Error handler com **4 parâmetros** (`error`, `request`, `response`, `next`)
 
 - `Error` → `400` `{ error: error.message }`
 - demais → `500` `{ error: "Internal server error" }`
 
 Porta: `process.env.PORT` ou `3333`.
 
-### Cloudinary (`src/config/cloudinary.ts`)
+### Cloudinary (`backend/src/config/cloudinary.ts`)
 
 Nomes oficiais da lib (não `cloudinary_name`):
 
@@ -1642,8 +1816,11 @@ cloudinary.config({
   api_key,
   api_secret,
   secure: true,
+  timeout: 600000, // 10 minutos
 });
 ```
+
+Upload no `CreateProductService`: `upload_stream` na pasta `products`, buffer enviado via `Readable.from(imageBuffer).pipe(uploadStream)`.
 
 ### Variáveis de ambiente (`.env`)
 
@@ -1680,13 +1857,15 @@ Alteração no `.env` exige reiniciar o `npm run dev`.
 
 ## Segurança
 
-- JWT no header `Authorization: Bearer <token>`
+- JWT no header `Authorization: Bearer <token>` (API)
+- No frontend, o token fica em cookie **httpOnly** `token-pizzaria`; Server Actions e páginas server leem via `getToken()` e repassam ao `apiClient`
 - Payload com `sub` = id do usuário; assinatura com `JWT_TOKEN`
 - Roles `STAFF` e `ADMIN`
   - Público: `POST /users`, `POST /session`
   - Logado: `GET /me`, `GET /category`, `GET /category/product`, `GET /product`, `POST /order`, `GET /order`, `DELETE /order/remove`, `GET /order/detail`, `PUT /order/send`, `PUT /order/finish`, `DELETE /order/delete`
   - Admin: `POST /category`, `POST /product`, `DELETE /product`
   - Sem `IsAuthenticated` no `routes.ts` atual: `POST /order/add`
+- Dashboard frontend (`/dashboard/**`): apenas `ADMIN` via `requiredAdmin()`; STAFF autenticado vai para `/access-denied`
 - Senhas com bcryptjs (salt 4); senha nunca retorna na API
 - Zod valida inputs; Multer restringe tipo e tamanho da imagem
 
@@ -1705,19 +1884,40 @@ Alteração no `.env` exige reiniciar o `npm run dev`.
 9. O `.refine` do Zod fica **depois** de `z.object({...})`, não como campo `message`/`path` dentro do objeto.
 10. Ciclo do pedido: criar (`draft true`, `status false`) → adicionar itens → `PUT /order/send` (`draft false`) → `PUT /order/finish` (`status true`). `DELETE /order/delete` apaga o pedido e os items (cascade).
 11. Arquivos de listagem de pedidos: `LIstOrdersController.ts` e `LIstOrdersService.ts` (L maiúsculo + I).
+12. Frontend usa `127.0.0.1:3333` como URL padrão da API (não `localhost`).
+13. Preview de imagem no formulário de produto usa `<img>` (Data URL); listagem usa URL do Cloudinary.
+14. `DELETE /product` usa **query** `product_id`, não path param (`/product/:id` não existe).
+15. Campo multipart da imagem é **`file`** (`upload.single('file')`).
 
 ---
 
 ## Como iniciar
 
-1. `npm install`
-2. Configurar `.env` (`DATABASE_URL`, `JWT_TOKEN`, `PORT`, Cloudinary)
+### Backend
+
+1. `cd backend && npm install`
+2. Configurar `backend/.env` (`DATABASE_URL`, `JWT_TOKEN`, `PORT`, `CLOUDINARY_*`)
 3. `npx prisma generate`
 4. `npx prisma migrate dev` (se o banco ainda não tiver as tabelas)
 5. `npm run dev`
-6. API em `http://localhost:3333`
+6. API em `http://127.0.0.1:3333`
+
+### Frontend
+
+1. `cd frontend && npm install`
+2. (Opcional) `NEXT_PUBLIC_API_URL=http://127.0.0.1:3333` se a API não estiver no host padrão
+3. `npm run dev`
+4. App em `http://localhost:3000`
+
+### Fluxo de teste (admin)
+
+1. Registrar usuário em `/register`
+2. Promover role para `ADMIN` no banco (se necessário)
+3. Login em `/login` → redireciona para `/dashboard`
+4. Criar categoria em `/dashboard/category`
+5. Criar produto com imagem em `/dashboard/products`
 
 ---
 
-**Atualizado em**: 14/09/2026  
-**Versão do projeto**: 1.0.0
+**Atualizado em**: 16/09/2026  
+**Versão do projeto**: 1.1.0

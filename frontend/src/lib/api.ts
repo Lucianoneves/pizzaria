@@ -1,7 +1,7 @@
 const API_URL =
     process.env.NEXT_PUBLIC_API_URL ??
     process.env.API_URL ??
-    "http://localhost:3333";
+    "http://127.0.0.1:3333";
 
 export function getApiUrl() {
     return API_URL;
@@ -9,6 +9,7 @@ export function getApiUrl() {
 
 interface FetchOptions extends RequestInit {
     token?: string;
+    duplex?: "half";
     next?: {
         revalidate?: number | false;
         tags?: string[];
@@ -40,6 +41,16 @@ function getErrorMessage(data: unknown, status: number): string {
         return payload.error;
     }
 
+    if (
+        payload.error &&
+        typeof payload.error === "object" &&
+        "message" in payload.error &&
+        typeof payload.error.message === "string" &&
+        payload.error.message
+    ) {
+        return payload.error.message;
+    }
+
     return `Erro HTTP: ${status}`;
 }
 
@@ -66,6 +77,7 @@ export async function apiClient<T>(
     const response = await fetch(`${API_URL}${endpoint}`, {
         ...fetchOptions,
         headers,
+        ...(isFormData ? { duplex: "half" as const } : {}),
     });
 
     const data = await response.json().catch(() => null);

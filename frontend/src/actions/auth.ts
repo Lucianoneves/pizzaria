@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { apiClient } from "@/lib/api";
 import { type AuthResponse, type User } from "@/lib/types";
-import { setToken, removeToken } from "@/lib/auth";
+import { getUser, isAdmin, setToken, removeToken } from "@/lib/auth";
 
 export type RegisterState = {
     success: boolean;
@@ -78,8 +78,6 @@ export async function loginAction(
         });
 
         await setToken(response.token);
-
-
     } catch (error) {
         return {
             success: false,
@@ -90,10 +88,21 @@ export async function loginAction(
         };
     }
 
+    const user = await getUser();
+
+    if (!isAdmin(user)) {
+        redirect("/access-denied");
+    }
+
     redirect("/dashboard");
 }
 
 export async function logoutAction() {
+    await removeToken();
+    redirect("/login");
+}
+
+export async  function logoutSidebarAction() {
     await removeToken();
     redirect("/login");
 }

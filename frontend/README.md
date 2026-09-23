@@ -1,36 +1,58 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Frontend — Pizzaria +++ Sabor
 
-## Getting Started
+Painel web do **admin/cozinha**. Faz parte do monorepo.
 
-First, run the development server:
+A documentação **global** (backend, frontend e app do garçom) está no [README da raiz](../README.md).
+
+## Stack
+
+- Next.js 16 (App Router)
+- React 19
+- Tailwind CSS 4
+- Server Actions + cookie JWT (`token-pizzaria`)
+- Consome a API em `http://127.0.0.1:3333`
+
+## Como rodar
+
+O backend precisa estar ligado (`cd backend && npm run dev`).
 
 ```bash
+cd frontend
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abra [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Opcional — `frontend/.env.local`:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+NEXT_PUBLIC_API_URL=http://127.0.0.1:3333
+```
 
-## Learn More
+## Rotas atuais
 
-To learn more about Next.js, take a look at the following resources:
+| Rota | Função |
+| --- | --- |
+| `/register` | Cadastro |
+| `/login` | Login (ADMIN vai para o dashboard) |
+| `/dashboard` | Pedidos da cozinha |
+| `/dashboard/products` | Produtos e upload de imagem |
+| `/dashboard/category` | Categorias |
+| `/access-denied` | STAFF sem permissão no painel |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Só **ADMIN** entra em `/dashboard/**`. Usuário novo nasce como `STAFF`; promova no banco se for usar o painel.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Pastas principais
 
-## Deploy on Vercel
+```
+frontend/src/
+├── actions/      # login, categorias, produtos, pedidos
+├── app/          # rotas (App Router)
+├── components/   # dashboard, forms, UI
+└── lib/          # apiClient, auth, tipos
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**Atualizado em:** 23/09/2026

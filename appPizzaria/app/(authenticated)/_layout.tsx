@@ -17,9 +17,8 @@ export default function AuthenticatedLayout() { // Layout para as rotas autentic
     }
   }, [loading, signed]); 
 
-  if(loading || !signed){ 
+  if (loading || !signed) {
     return null;
-
   }
 
   return ( // Stack para as rotas autenticadas
@@ -38,6 +37,7 @@ export default function AuthenticatedLayout() { // Layout para as rotas autentic
         }}
         >
       <Stack.Screen name="dashboard" options ={{headerShown: false}} />
+      <Stack.Screen name="order" options ={{headerShown: false}} />
     </Stack>
   );
 }

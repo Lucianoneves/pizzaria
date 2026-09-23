@@ -1,13 +1,63 @@
-import { View, Text, StyleSheet, StatusBar, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity, Button } from "react-native"; 
+import { View, Text, StyleSheet, StatusBar, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity, Button, Alert } from "react-native"; 
 import { useAuth } from "../../contexts/AuthContext";
 import { borderRadius, colors, fontSize, spacing } from "../../constants/theme";
 import {useSafeAreaInsets} from "react-native-safe-area-context";
 import { Input } from "../../components/Input";
+import { useState } from "react";
+import  api  from "../../service/api";
+import { Order } from "../../types";
+import { useRouter } from "expo-router";
+
+
 
 
 export default function Dashboard() {
   const { signOut } = useAuth();
   const insets = useSafeAreaInsets();
+  const [tableNumber, setTableNumber] = useState(""); 
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+
+
+
+   async function handleOpenTable() {
+     if(!tableNumber) {
+      Alert.alert("Atenção..");
+      return;
+  }
+
+  const table = parseInt(tableNumber); 
+
+  if(isNaN(table)|| table <= 0) {
+    Alert.alert("Atenção..", "Digite um número de mesa válido");
+    return;
+  } 
+
+  try {  
+    setLoading(true);  
+    const response = await api.post<Order>("/order", {
+      table,
+      name: `Mesa ${table}`,
+    });
+
+    router.push({
+      pathname: "/(authenticated)/order",
+      params: {
+        table: String(response.data.table),
+        orderId: response.data.id,
+      },
+    });
+
+  
+
+    setTableNumber("");
+  } catch (error) {
+    console.log(error);
+    Alert.alert("Erro", "Não foi possível abrir a mesa"); 
+  } finally {
+    setLoading(false);
+  }
+  }
 
 
   return (
@@ -45,10 +95,13 @@ export default function Dashboard() {
         label=""
         placeholder="Numero da mesa..."
         style={styles.input}
-        placeholderTextColor={colors.gray}
+        placeholderTextColor={colors.gray} 
+        value={tableNumber}
+        onChangeText={setTableNumber} 
+        keyboardType="numeric"
         />
 
-        <Button title="Abrir mesa" onPress={() => {}} />
+        <Button title="Abrir mesa" onPress={handleOpenTable} />
 
      </View>
 

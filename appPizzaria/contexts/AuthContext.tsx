@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState } from "react";
 import api from "../service/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LoginResponse, User } from "../types/index";
@@ -21,41 +21,10 @@ const AuthContext = createContext<AuthContextData | undefined>(undefined);
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [signed, setSigned] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<User | null>(null);
 
-  useEffect(() => {
-    async function loadData() {
-      await loadStorageData();
-    }
-    loadData();
-  }, []); 
-
-
-    async function loadStorageData() { 
-      try{ 
-        setLoading(true);
-        const storageToken = await AsyncStorage.getItem("@token:pizzaria");
-        const storageUser = await AsyncStorage.getItem("@user:pizzaria");
-
-       
-
-        if(storageToken && storageUser){
-          setUser(JSON.parse(storageUser));
-          setSigned(true);
-        }
-
-      }catch(error){
-        console.log(error);
-      }finally{
-        setLoading(false); 
-      } 
-      
-    
-  }
-
   async function signIn(email: string, password: string) {
-    setLoading(true);
     try {
       const response = await api.post<LoginResponse>("/session", {
         email,
@@ -76,14 +45,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         console.log(error);
       }
       throw error;
-    } finally {
-      setLoading(false);
     }
   }
 
-
-
-  async function signOut() {    // Função para deslogar o usuário   
+  async function signOut() {
     await AsyncStorage.multiRemove(["@token:pizzaria", "@user:pizzaria"]);
     setUser(null);
     setSigned(false);

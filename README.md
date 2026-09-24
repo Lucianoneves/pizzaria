@@ -1,50 +1,121 @@
 # Pizzaria +++ Sabor
 
-Monorepo do sistema da pizzaria: API, painel web da cozinha/admin e app mobile do garçom.
-
-| Pasta | O que é | Stack | Porta / acesso |
-| --- | --- | --- | --- |
-| [`backend/`](./backend) | API REST | Express 5, Prisma 7, PostgreSQL, JWT, Cloudinary | `http://127.0.0.1:3333` |
-| [`frontend/`](./frontend) | Painel web (ADMIN) | Next.js 16, React 19, Tailwind, Server Actions | `http://localhost:3000` |
-| [`appPizzaria/`](./appPizzaria) | App do garçom (STAFF) | Expo 57, Expo Router, React Native | Expo Go (QR) |
-
-Detalhamento de endpoints, schemas e fluxos: [`CONTEXTO_PROJETO.md`](./CONTEXTO_PROJETO.md).
+Sistema full stack de gestão de pizzaria em monorepo: API, painel web (admin/cozinha) e app mobile do garçom.
 
 ---
 
-## Visão geral
+## Por que este projeto?
+
+Simular um cenário real de operação de pizzaria, com papéis e dispositivos diferentes:
+
+| Quem | Onde | O que faz |
+| --- | --- | --- |
+| Garçom (`STAFF`) | App mobile | Abre mesa, monta pedido e envia à cozinha |
+| Admin / cozinha (`ADMIN`) | Painel web | Gerencia cardápio e acompanha/finaliza pedidos |
+| Sistema | API central | Autentica, valida e persiste tudo |
+
+A ideia é separar responsabilidades: o salão trabalha no celular, a cozinha no navegador, e ambos falam com a mesma API.
 
 ```
 Celular (appPizzaria) ──┐
                          ├──► Backend Express :3333 ──► PostgreSQL
-Navegador (frontend)  ──┘                    └──► Cloudinary (fotos de produto)
+Navegador (frontend)  ──┘                    └──► Cloudinary (fotos)
 ```
 
-- **ADMIN** gerencia categorias, produtos e acompanha pedidos no dashboard web.
-- **STAFF** (garçom) entra pelo app Expo, abre mesa e monta pedidos.
-- Novos usuários nascem com role `STAFF`. Para usar o painel web, o role precisa ser `ADMIN` no banco.
+---
 
-Ciclo do pedido:
+## Por que monorepo?
 
-1. Abrir mesa (`POST /order`) — rascunho (`draft: true`)
-2. Adicionar itens (`POST /order/add`)
-3. Enviar à cozinha (`PUT /order/send`) — `draft: false`
-4. Finalizar (`PUT /order/finish`) — `status: true`
+Três apps, um domínio. Manter `backend/`, `frontend/` e `appPizzaria/` juntos facilita:
+
+- alinhar tipos e fluxos de pedido
+- documentar o sistema inteiro em um só lugar
+- desenvolver e testar a integração ponta a ponta
+
+Detalhes técnicos da API: [`CONTEXTO_PROJETO.md`](./CONTEXTO_PROJETO.md).
+
+---
+
+## Stacks e por quê
+
+| Pasta | Função | Stack | Por quê |
+| --- | --- | --- | --- |
+| [`backend/`](./backend) | API REST | Express, Prisma, PostgreSQL, JWT, Zod, Cloudinary | API única, tipada e validada; Postgres para pedidos/relacionais; JWT para sessão; Cloudinary para imagens de produto |
+| [`frontend/`](./frontend) | Painel ADMIN | Next.js, React, TypeScript, Tailwind, Server Actions | Dashboard web rápido, rotas protegidas e cookie httpOnly |
+| [`appPizzaria/`](./appPizzaria) | App STAFF | Expo, React Native, Expo Router, Axios, AsyncStorage | App nativo no celular (Expo Go), fluxo do garçom no salão |
+
+**Em resumo das escolhas:**
+
+- **TypeScript** em todo o projeto → menos erro de contrato entre app, web e API  
+- **Prisma + PostgreSQL** → modelo claro (User, Category, Product, Order, Item)  
+- **JWT** → mesma autenticação no web (cookie) e no mobile (AsyncStorage)  
+- **Zod** → validação de body/query antes de chegar no service  
+- **Cloudinary** → upload de banner de produto sem guardar arquivo local  
+- **Expo Router** → navegação por pastas (login, dashboard, order, finish)
+
+---
+
+## Funcionalidades (resumo)
+
+### Backend
+- Cadastro e login (`POST /users`, `POST /session`)
+- Papéis `ADMIN` e `STAFF`
+- CRUD de categorias e produtos (produto com imagem)
+- Pedidos: abrir, adicionar/remover item, detalhar, enviar, finalizar, apagar
+
+### Frontend (admin/cozinha)
+- Login/cadastro
+- Categorias e produtos (com upload)
+- Lista de pedidos em produção (`draft=false`, `status=false`)
+- Modal de detalhes e finalização do pedido (`PUT /order/finish`)
+
+### App do garçom
+- Login com JWT
+- Abrir mesa (`POST /order`)
+- Montar pedido: categoria → produto → quantidade
+- Adicionar/remover itens
+- Enviar à cozinha (`PUT /order/send`)
+
+---
+
+## Ciclo do pedido
+
+1. **Abrir mesa** → `POST /order` → `draft: true` (rascunho)
+2. **Montar itens** → `POST /order/add` / `DELETE /order/remove`
+3. **Enviar à cozinha** → `PUT /order/send` → `draft: false`
+4. **Finalizar na cozinha** → `PUT /order/finish` → `status: true`
+
+Por isso o painel lista `draft=false` (já enviados). Pedidos ainda no app (`draft=true`) não aparecem na cozinha.
+
+---
+
+## Papéis
+
+| Role | Painel web | App Expo |
+| --- | --- | --- |
+| `ADMIN` | Dashboard completo | Pode logar |
+| `STAFF` | `/access-denied` | App do garçom |
+
+Cadastro cria `STAFF`. Para o painel:
+
+```sql
+UPDATE users SET role = 'ADMIN' WHERE email = 'seu@email.com';
+```
 
 ---
 
 ## Como rodar
 
-Precisa do **Node.js 18+**, **PostgreSQL** e, para o app, **Expo Go** no celular.
+Requisitos: **Node.js 18+**, **PostgreSQL**, **Expo Go** (celular).
 
-### 1. Backend
+### 1. Backend — `http://127.0.0.1:3333`
 
 ```bash
 cd backend
 npm install
 ```
 
-Crie `backend/.env`:
+`.env`:
 
 ```bash
 PORT=3333
@@ -61,9 +132,7 @@ npx prisma migrate dev
 npm run dev
 ```
 
-API em `http://127.0.0.1:3333`.
-
-### 2. Frontend (painel admin)
+### 2. Frontend — `http://localhost:3000`
 
 ```bash
 cd frontend
@@ -71,108 +140,45 @@ npm install
 npm run dev
 ```
 
-Opcional: `frontend/.env.local`
+Opcional (`.env.local`): `NEXT_PUBLIC_API_URL=http://127.0.0.1:3333`
 
-```bash
-NEXT_PUBLIC_API_URL=http://127.0.0.1:3333
-```
-
-Abra `http://localhost:3000`.
-
-| Rota | Quem acessa | Função |
-| --- | --- | --- |
-| `/register` | público | Cadastro (`POST /users`) |
-| `/login` | público | Login (`POST /session`) |
-| `/dashboard` | ADMIN | Pedidos da cozinha |
-| `/dashboard/products` | ADMIN | Produtos + upload de imagem |
-| `/dashboard/category` | ADMIN | Categorias |
-| `/access-denied` | STAFF logado | Sem permissão no painel |
-
-O token fica no cookie httpOnly `token-pizzaria`.
-
-### 3. App do garçom (`appPizzaria`)
+### 3. App — Expo Go
 
 ```bash
 cd appPizzaria
-yarn install
-# ou npm install
+npm install
 npx expo start
 ```
 
-Use **`npx expo start`** (CLI local). O comando global `expo` está depreciado.
-
-No celular, abra o QR com o Expo Go. Celular e PC precisam estar na **mesma Wi-Fi**.
-
-URL da API em `appPizzaria/config/api.config.ts`:
+Em `appPizzaria/config/api.config.ts`, use o IP do PC:
 
 ```ts
 BASE_URL: "http://SEU_IP_LOCAL:3333"
 ```
 
-Troque `SEU_IP_LOCAL` pelo IP do PC (o mesmo do Metro, ex.: `192.168.100.37`). Sem a porta `:3333` o login falha com `Network Error`.
-
-No Android, HTTP local está liberado (`usesCleartextTraffic`).
-
-| Tela | Função |
-| --- | --- |
-| `app/index.tsx` | Redireciona conforme sessão |
-| `app/login.tsx` | Login do garçom |
-| `app/(authenticated)/dashboard.tsx` | Abrir mesa / novo pedido (`POST /order`) |
-| `app/(authenticated)/order.tsx` | Montar pedido da mesa |
-
-Fluxo no app após abrir a mesa:
-
-1. Escolher categoria (`GET /category`)
-2. Escolher produto da categoria (`GET /category/product?category_id=...`)
-3. Definir quantidade e adicionar item (`POST /order/add`)
-4. Remover item da lista, se preciso (`DELETE /order/remove?item_id=...`)
-
-Componentes principais do pedido: `Select`, `QuantityControl`, `OrderItem`, `Button`. Preços em reais via `utils/format.ts` (`formatPrice`).
-
-Sessão: `POST /session` → token em AsyncStorage (`@token:pizzaria`). Rotas autenticadas exigem `signed === true`.
-
-Params da tela de pedido (vindos do dashboard):
-
-```ts
-{ table: string; orderId: string }
-```
+Celular e PC na mesma Wi-Fi. `localhost` no celular não alcança o backend.
 
 ---
 
-## API (resumo)
+## API (atalho)
 
 Auth: `Authorization: Bearer <token>` nas rotas protegidas.
 
-| Método | Rota | Auth | Admin | Uso |
-| --- | --- | --- | --- | --- |
-| POST | `/users` | não | não | Cadastro |
-| POST | `/session` | não | não | Login |
-| GET | `/me` | sim | não | Perfil |
-| GET / POST | `/category` | sim | POST só admin | Categorias |
-| GET | `/category/product` | sim | não | Produtos da categoria |
-| GET / POST / DELETE | `/product` | sim | POST/DELETE admin | Produtos (DELETE = soft delete) |
-| POST / GET | `/order` | sim | não | Abrir / listar pedidos |
-| POST | `/order/add` | sim | não | Item no pedido (`order_id`, `product_id`, `amount`) |
-| DELETE | `/order/remove` | sim | não | Remover item |
-| GET | `/order/detail` | sim | não | Detalhe |
-| PUT | `/order/send` | sim | não | Enviar à cozinha |
-| PUT | `/order/finish` | sim | não | Finalizar |
-| DELETE | `/order/delete` | sim | não | Apagar pedido |
-
----
-
-## Papéis
-
-| Role | Frontend web | App Expo |
+| Método | Rota | Uso |
 | --- | --- | --- |
-| `ADMIN` | Dashboard completo | Também pode logar |
-| `STAFF` | `/access-denied` | App do garçom |
-
-Cadastro cria `STAFF`. Para o painel web, atualize no banco:
-
-```sql
-UPDATE users SET role = 'ADMIN' WHERE email = 'seu@email.com';
-```
+| POST | `/users` | Cadastro |
+| POST | `/session` | Login |
+| GET | `/me` | Perfil |
+| GET / POST | `/category` | Listar / criar categoria |
+| GET | `/category/product?category_id=` | Produtos da categoria |
+| GET / POST / DELETE | `/product` | Produtos |
+| POST / GET | `/order` | Abrir / listar (`?draft=true\|false`) |
+| POST | `/order/add` | Item (`order_id`, `product_id`, `amount`) |
+| DELETE | `/order/remove?item_id=` | Remover item |
+| GET | `/order/detail?order_id=` | Detalhe |
+| PUT | `/order/send` | Enviar à cozinha |
+| PUT | `/order/finish` | Finalizar |
+| DELETE | `/order/delete?order_id=` | Apagar pedido |
 
 ---
 
@@ -180,19 +186,19 @@ UPDATE users SET role = 'ADMIN' WHERE email = 'seu@email.com';
 
 ```
 pizzaria/
-├── README.md                 ← este arquivo
-├── CONTEXTO_PROJETO.md       ← documentação detalhada da API
-├── backend/                  ← Express + Prisma
-├── frontend/                 ← Next.js (admin / cozinha)
-└── appPizzaria/              ← Expo (garçom)
-    ├── app/                  ← rotas (login, dashboard, order)
-    ├── components/           ← Select, QuantityControl, OrderItem, Button
-    ├── contexts/             ← AuthContext
-    ├── service/              ← cliente Axios
-    ├── types/                ← tipos compartilhados
-    └── utils/                ← formatPrice
+├── README.md              ← visão geral (este arquivo)
+├── CONTEXTO_PROJETO.md    ← detalhes da API
+├── backend/               ← Express + Prisma + PostgreSQL
+├── frontend/              ← Next.js (admin / cozinha)
+└── appPizzaria/           ← Expo (garçom)
+    ├── app/               ← login, dashboard, order, finish
+    ├── components/        ← Select, QuantityControl, OrderItem, Button
+    ├── contexts/          ← AuthContext
+    ├── service/           ← Axios + token
+    ├── types/             ← tipagens
+    └── utils/             ← formatPrice
 ```
 
 ---
 
-**Atualizado em:** 23/09/2026
+**Atualizado em:** 24/09/2026

@@ -113,6 +113,18 @@ export default function Order() {
         } 
     }
 
+    function handleAvance() {
+        if (items.length === 0) {
+            Alert.alert("Atenção", "Adicione pelo menos um item ao pedido");
+            return;
+        }
+
+        router.push({
+            pathname: "/(authenticated)/finish",
+            params: {orderId, table, order_id: orderId},
+        });
+    }
+
     if (loadingCategories) {
         return (
             <View style={styles.loadingContainer}>
@@ -138,7 +150,10 @@ export default function Order() {
 
             <ScrollView
                 style={styles.scroll}
-                contentContainerStyle={styles.scrollContent}
+                contentContainerStyle={[
+                    styles.scrollContent,
+                    { paddingBottom: insets.bottom + 40 },
+                ]}
                 keyboardShouldPersistTaps="handled"
             >
                 <Select
@@ -202,6 +217,16 @@ export default function Order() {
                                 onRemove={handleRemoveItem}
                             />
                         ))}
+                    </View>
+                )}
+
+                {items.length > 0 && (
+                    <View style={styles.footer}>
+                        <Button
+                            title="Avançar"
+                            onPress={handleAvance}
+                            variant="primary"
+                        />
                     </View>
                 )}
             </ScrollView>
@@ -275,5 +300,8 @@ const styles = StyleSheet.create({
     },
     addButton: {
         marginTop: spacing.lg,
+    },
+    footer: {
+        paddingTop: 24,
     },
 });

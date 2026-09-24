@@ -77,7 +77,7 @@ export default function Dashboard() {
      
      >
       <View style={[styles.header, {paddingTop: insets.top +70}]}>
-        <TouchableOpacity style={styles.signOutButton}>
+        <TouchableOpacity style={styles.signOutButton}onPress={signOut}>
           <Text style={styles.signoutText}>Sair</Text>
         </TouchableOpacity>
       </View> 

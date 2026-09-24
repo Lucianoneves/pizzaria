@@ -27,13 +27,13 @@ function Orders({ token }: OrdersProps) {
     const fetchOrders = async () => {
         try {
 
-            const response = await apiClient<Order[]>("/order?draft=true", {
+            const response = await apiClient<Order[]>("/order?draft=false", {
                 method: "GET",
                 cache: "no-store",
                 token: token,
             });
 
-            const pendingOrders = response.filter(order => !order.status)
+            const pendingOrders = response.filter((order) => !order.status);
 
             setOrders(pendingOrders);
             setLoading(false);

@@ -38,6 +38,12 @@ export default function AuthenticatedLayout() { // Layout para as rotas autentic
         >
       <Stack.Screen name="dashboard" options ={{headerShown: false}} />
       <Stack.Screen name="order" options ={{headerShown: false}} />
+      <Stack.Screen 
+       name="finish"
+        options ={{
+          headerShown: true,
+          headerTitle: "Finalizar pedido", 
+          }} />
     </Stack>
   );
 }

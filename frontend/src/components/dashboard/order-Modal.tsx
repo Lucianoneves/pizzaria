@@ -14,6 +14,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import { finishOrdersAction } from "@/actions/orders";
 
 interface OrderModalProps {
     orderId: string | undefined;
@@ -39,6 +40,7 @@ function calculateOrderTotal(order: Order) {
 export function OrderModal({ orderId, onClose, token }: OrderModalProps) {
     const [order, setOrder] = useState<Order | null>(null);
     const [loading, setLoading] = useState(false);
+    const [finishing, setFinishing] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const open = Boolean(orderId);
@@ -92,6 +94,34 @@ export function OrderModal({ orderId, onClose, token }: OrderModalProps) {
         };
     }, [orderId, token]);
 
+    async function handleFinishOrder() {
+        if (!orderId || finishing) {
+            return;
+        }
+
+        try {
+            setFinishing(true);
+            setError(null);
+
+            const result = await finishOrdersAction(orderId);
+
+            if (!result.success) {
+                setError(result.error ?? "Falha ao finalizar pedido");
+                return;
+            }
+
+            await onClose();
+        } catch (err) {
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : "Falha ao finalizar pedido",
+            );
+        } finally {
+            setFinishing(false);
+        }
+    }
+
     return (
         <Dialog
             open={open}
@@ -104,7 +134,7 @@ export function OrderModal({ orderId, onClose, token }: OrderModalProps) {
             <DialogContent className="bg-app-background p-6 text-white sm:max-w-md">
                 {loading ? (
                     <p className="text-sm text-white/70">Carregando pedido...</p>
-                ) : error ? (
+                ) : error && !order ? (
                     <p className="text-sm text-red-400">{error}</p>
                 ) : order ? (
                     <>
@@ -153,6 +183,10 @@ export function OrderModal({ orderId, onClose, token }: OrderModalProps) {
                                 {formatPrice(calculateOrderTotal(order))}
                             </p>
                         </div>
+
+                        {error ? (
+                            <p className="text-sm text-red-400">{error}</p>
+                        ) : null}
                     </>
                 ) : null}
 
@@ -161,14 +195,17 @@ export function OrderModal({ orderId, onClose, token }: OrderModalProps) {
                         variant="outline"
                         className="border-app-border text-white hover:bg-white/10"
                         onClick={() => void onClose()}
+                        disabled={finishing}
                     >
                         Fechar
                     </Button>
                     <Button
                         type="button"
                         className="bg-brand-primary text-white hover:bg-brand-primary/90"
+                        onClick={() => void handleFinishOrder()}
+                        disabled={!orderId || loading || finishing || !order}
                     >
-                        Finalizar pedido
+                        {finishing ? "Finalizando..." : "Finalizar pedido"}
                     </Button>
                 </DialogFooter>
             </DialogContent>
